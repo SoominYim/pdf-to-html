@@ -10,9 +10,9 @@
         <button @click="page = page < pages ? page + 1 : page">Next</button>
       </li>
       <li>
-        <button @click="scale = scale > 1 ? scale - 1 : scale">-</button>
-        <span>{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
-        <button @click="scale = scale < 6 ? scale + 1 : scale">+</button>
+        <button @click="scale = scale > 1.1 ? scale - 0.2 : scale">-</button>
+        <span for="magnification">{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
+        <button @click="scale = scale < 6 ? scale + 0.2 : scale">+</button>
       </li>
       <li>
         <button @click="exportHTML">내보내기</button>
@@ -104,14 +104,12 @@ document.addEventListener("keydown", function (e) {
       // Ctrl + -인 경우
       e.preventDefault();
       if (scale.value > 1.1) {
-        console.log(scale.value);
         scale.value -= 0.2;
       }
     } else if (e.key === "=" || e.key === "+") {
       // Ctrl + +인 경우
       e.preventDefault();
       if (scale.value < 6) {
-        console.log(scale.value);
         scale.value += 0.2;
       }
     }
@@ -135,10 +133,12 @@ function exportHTML() {
   const linkElement = document.createElement("link");
 
   linkElement.rel = "stylesheet";
-  linkElement.href = "../css/common.css";
+  linkElement.href = "./css/common.css";
 
   const scriptElement = document.createElement("script");
   scriptElement.src = `./js/${fileName}_${String(page.value).padStart(3, "0")}.js`;
+
+  contentHTML.querySelector("title").textContent = `${fileName}_${String(page.value).padStart(3, "0")}`;
 
   const js = `
   const canvas = document.querySelector("canvas");
