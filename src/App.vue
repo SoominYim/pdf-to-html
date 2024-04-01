@@ -27,17 +27,21 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
-
+import JSZip from "jszip";
+import cssContent from "./style/style.js";
 const file = ref(null);
 const { pdf, pages } = usePDF(file);
 
 const scale = ref(2);
 const page = ref(1);
 
+let fileName = "";
+
 function changeFile(event) {
   const selectedFile = event.target.files[0];
   if (selectedFile) {
     file.value = URL.createObjectURL(selectedFile);
+    fileName = selectedFile.name.split(".").slice(0, -1).join(".");
   }
 }
 
@@ -113,24 +117,30 @@ document.addEventListener("keydown", function (e) {
     }
   }
 });
+
 function exportHTML() {
   const contentHTML = document.querySelector("html").cloneNode(true);
 
   // 필요없는 요소 제거
-  const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script");
+  const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style");
   elementsToRemove.forEach((element) => {
     if (element) {
       element.parentNode.removeChild(element);
     }
   });
 
-  const filename = "exported_content.html";
-
   const a = document.querySelector("canvas");
   const canvasDataURL = a.toDataURL();
 
+  const linkElement = document.createElement("link");
+
+  linkElement.rel = "stylesheet";
+  linkElement.href = "../css/common.css";
+
   const scriptElement = document.createElement("script");
-  scriptElement.textContent = `
+  scriptElement.src = `./js/${fileName}_${String(page.value).padStart(3, "0")}.js`;
+
+  const js = `
   const canvas = document.querySelector("canvas");
   const context = canvas.getContext("2d");
   const base_image = new Image();
@@ -140,17 +150,28 @@ function exportHTML() {
     canvas.height = base_image.height;
     context.drawImage(base_image, 0, 0);
   };
-`;
+  `;
+  contentHTML.querySelector("head").appendChild(linkElement);
   contentHTML.appendChild(scriptElement);
-  // export
+
   const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
 
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const zip = new JSZip(); // ZIP 객체 생성
+
+  zip.folder("css").file("common.css", cssContent);
+  zip.folder(`js`).file(`${fileName}_${String(page.value).padStart(3, "0")}.js`, js);
+  zip.file(`${fileName}_${String(page.value).padStart(3, "0")}.html`, blob);
+
+  zip
+    .generateAsync({ type: "blob" }) //압축파일 생성
+    .then((resZip) => {
+      const url = URL.createObjectURL(resZip); //객체 URL 생성
+      const aTag = document.createElement("a");
+
+      aTag.download = fileName; //저장될 파일 이름
+      aTag.href = url;
+      aTag.click();
+    });
 }
 </script>
 
@@ -166,6 +187,6 @@ export default {
 <style scoped></style>
 
 <style lang="css">
-/* @import "./style/textLayer.css";
-@import "./style/annotationLayer.css"; */
+/* @import "./style/textLayer.css"; */
+@import "./style/annotationLayer.css";
 </style>
