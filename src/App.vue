@@ -93,6 +93,26 @@ document.addEventListener(
   },
   { passive: false }
 );
+
+document.addEventListener("keydown", function (e) {
+  if (e.ctrlKey) {
+    if (e.key === "-") {
+      // Ctrl + -인 경우
+      e.preventDefault();
+      if (scale.value > 1.1) {
+        console.log(scale.value);
+        scale.value -= 0.2;
+      }
+    } else if (e.key === "=" || e.key === "+") {
+      // Ctrl + +인 경우
+      e.preventDefault();
+      if (scale.value < 6) {
+        console.log(scale.value);
+        scale.value += 0.2;
+      }
+    }
+  }
+});
 function exportHTML() {
   const contentHTML = document.querySelector("html").cloneNode(true);
 
