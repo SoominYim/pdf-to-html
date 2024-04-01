@@ -10,19 +10,17 @@
         <button @click="page = page < pages ? page + 1 : page">Next</button>
       </li>
       <li>
-        <button @click="scale = scale > 0.25 ? scale - 0.25 : scale">-</button>
-        <span>{{ scale * 100 }}%</span>
-        <button @click="scale = scale < 2 ? scale + 0.25 : scale">+</button>
+        <button @click="scale = scale > 1 ? scale - 1 : scale">-</button>
+        <span>{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
+        <button @click="scale = scale < 6 ? scale + 1 : scale">+</button>
       </li>
       <li>
         <button @click="exportHTML">내보내기</button>
       </li>
     </ul>
-    <div class="content" ref="content" style="width: fit-content; height: auto; margin: 0 auto">
-      <VuePDF :pdf="pdf" :page="page" :scale="scale" text-layer="" />
+    <div class="content" ref="content" :style="{ width: 'fit-content', margin: '0 auto' }">
+      <VuePDF ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" text-layer />
     </div>
-
-    <canvas id="a"></canvas>
   </div>
 </template>
 
@@ -33,7 +31,7 @@ import { VuePDF, usePDF } from "@tato30/vue-pdf";
 const file = ref(null);
 const { pdf, pages } = usePDF(file);
 
-const scale = ref(1);
+const scale = ref(2);
 const page = ref(1);
 
 function changeFile(event) {
@@ -56,11 +54,45 @@ onMounted(() => {
       }
     });
   });
+
   const contentElement = document.querySelector(".content");
   observer.observe(contentElement, { childList: true, subtree: true });
-  console.log(pdf);
 });
 
+let isCtrl = false;
+
+document.addEventListener("keydown", function (e) {
+  if (e.which === 17) {
+    isCtrl = true;
+  }
+});
+
+document.addEventListener("keyup", function (e) {
+  if (e.which === 17) {
+    isCtrl = false;
+  }
+});
+
+document.addEventListener(
+  "wheel",
+  function (e) {
+    if (isCtrl) {
+      e.preventDefault();
+      if (e.deltaY > 0) {
+        if (scale.value > 1.1) {
+          console.log(scale.value);
+          scale.value -= 0.2;
+        }
+      } else if (e.deltaY < 0) {
+        if (scale.value < 6) {
+          console.log(scale.value);
+          scale.value += 0.2;
+        }
+      }
+    }
+  },
+  { passive: false }
+);
 function exportHTML() {
   const contentHTML = document.querySelector("html").cloneNode(true);
 
