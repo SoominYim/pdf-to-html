@@ -114,6 +114,6 @@ export default {
 <style scoped></style>
 
 <style lang="css">
-@import "./style/textLayer.css";
-@import "./style/annotationLayer.css";
+/* @import "./style/textLayer.css";
+@import "./style/annotationLayer.css"; */
 </style>
