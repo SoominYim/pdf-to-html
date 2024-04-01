@@ -4,17 +4,25 @@
       <li>
         <input type="file" accept=".pdf" @change="changeFile" />
       </li>
-      <li>
+      <li v-if="isFile">
         <button @click="page = page > 1 ? page - 1 : page">Prev</button>
-        <span>{{ page }} / {{ pages }}</span>
+        <input
+          type="text"
+          :value="page"
+          @keydown.enter="changePage"
+          @focusout="resetPage"
+          style="width: 50px; text-align: right"
+        />
+        /
+        {{ pages }}
         <button @click="page = page < pages ? page + 1 : page">Next</button>
       </li>
-      <li>
+      <li v-if="isFile">
         <button @click="scale = scale > 1.1 ? scale - 0.2 : scale">-</button>
         <span for="magnification">{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
         <button @click="scale = scale < 6 ? scale + 0.2 : scale">+</button>
       </li>
-      <li>
+      <li v-if="isFile">
         <button @click="exportHTML">내보내기</button>
       </li>
     </ul>
@@ -34,14 +42,22 @@ const { pdf, pages } = usePDF(file);
 
 const scale = ref(2);
 const page = ref(1);
+const fileName = ref("");
+const isFile = ref(false);
 
-let fileName = "";
+function changePage(e) {
+  e.target.value > pages.value || e.target.value < 1 ? (e.target.value = page.value) : (page.value = +e.target.value);
+}
+function resetPage(e) {
+  e.target.value = page.value;
+}
 
 function changeFile(event) {
   const selectedFile = event.target.files[0];
   if (selectedFile) {
     file.value = URL.createObjectURL(selectedFile);
-    fileName = selectedFile.name.split(".").slice(0, -1).join(".");
+    fileName.value = selectedFile.name.split(".").slice(0, -1).join(".");
+    isFile.value = true;
   }
 }
 
@@ -84,12 +100,10 @@ document.addEventListener(
       e.preventDefault();
       if (e.deltaY > 0) {
         if (scale.value > 1.1) {
-          console.log(scale.value);
           scale.value -= 0.2;
         }
       } else if (e.deltaY < 0) {
         if (scale.value < 6) {
-          console.log(scale.value);
           scale.value += 0.2;
         }
       }
@@ -136,9 +150,9 @@ function exportHTML() {
   linkElement.href = "./css/common.css";
 
   const scriptElement = document.createElement("script");
-  scriptElement.src = `./js/${fileName}_${String(page.value).padStart(3, "0")}.js`;
+  scriptElement.src = `./js/${fileName.value}_${String(page.value).padStart(3, "0")}.js`;
 
-  contentHTML.querySelector("title").textContent = `${fileName}_${String(page.value).padStart(3, "0")}`;
+  contentHTML.querySelector("title").textContent = `${fileName.value}_${String(page.value).padStart(3, "0")}`;
 
   const js = `
   const canvas = document.querySelector("canvas");
@@ -159,8 +173,8 @@ function exportHTML() {
   const zip = new JSZip(); // ZIP 객체 생성
 
   zip.folder("css").file("common.css", cssContent);
-  zip.folder(`js`).file(`${fileName}_${String(page.value).padStart(3, "0")}.js`, js);
-  zip.file(`${fileName}_${String(page.value).padStart(3, "0")}.html`, blob);
+  zip.folder(`js`).file(`${fileName.value}_${String(page.value).padStart(3, "0")}.js`, js);
+  zip.file(`${fileName.value}_${String(page.value).padStart(3, "0")}.html`, blob);
 
   zip
     .generateAsync({ type: "blob" }) //압축파일 생성
@@ -168,7 +182,7 @@ function exportHTML() {
       const url = URL.createObjectURL(resZip); //객체 URL 생성
       const aTag = document.createElement("a");
 
-      aTag.download = fileName; //저장될 파일 이름
+      aTag.download = fileName.value; //저장될 파일 이름
       aTag.href = url;
       aTag.click();
     });
