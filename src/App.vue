@@ -1,10 +1,16 @@
 <template>
   <div id="app" style="text-align: center">
+    <div v-if="!isFile">
+      <label for="choice">개별 선택</label>
+      <input type="radio" name="selectionType" id="choice" v-model="selectionType" value="choice" />
+      <label for="range">범위 선택</label>
+      <input type="radio" name="selectionType" id="range" v-model="selectionType" value="range" />
+    </div>
     <ul class="tool-bar" style="display: flex; justify-content: center; list-style-type: none; gap: 10px">
       <li>
         <input type="file" accept=".pdf" @change="changeFile" />
       </li>
-      <li v-if="isFile">
+      <li v-if="isFile && selectionType == 'choice'">
         <button @click="page = page > 1 ? page - 1 : page">Prev</button>
         <input
           type="text"
@@ -22,22 +28,55 @@
         <span for="magnification">{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
         <button @click="scale = scale < 6 ? scale + 0.2 : scale">+</button>
       </li>
-      <li v-if="isFile">
+      <li v-if="isFile && selectionType == 'choice'">
         <span>선택 : {{ selectedPage.map((v) => v.page) }}</span>
-        <button @click="selectPage">선택</button>
+        <button @click="selectChoicePage">선택</button>
+      </li>
+      <li v-if="isFile && selectionType == 'range'">
+        <span style="color: red">* 과도한 스케일 조정 시 오버플로우가 발생합니다. </span>
+        <label for="startPage">Start Page:</label>
+        <input
+          type="text"
+          id="startPage"
+          :value="startPage"
+          @keydown.enter="updateStartPages"
+          @focusout="resetStartPage"
+        />
+      </li>
+      <li v-if="isFile && selectionType == 'range'">
+        <label for="lastPage">Last Page:</label>
+        <input type="text" id="lastPage" :value="lastPage" @keydown.enter="updateLastPages" @focusout="resetLastPage" />
       </li>
       <li v-if="isFile">
-        <button @click="exportHTML">내보내기</button>
+        <button @click="exportChoiceHTML">내보내기</button>
+      </li>
+      <li v-if="isFile">
+        <button @click="exportRangeHTML">내보내기</button>
       </li>
     </ul>
-    <div class="content" ref="content" :style="{ width: 'fit-content', margin: '0 auto' }">
+    <div
+      v-if="selectionType == 'range'"
+      class="content"
+      ref="content"
+      :style="{ width: 'fit-content', margin: '0 auto' }"
+    >
+      <div class="pdf_wrap" v-for="page in filteredPages" :key="page">
+        <VuePDF ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" text-layer />
+      </div>
+    </div>
+    <div
+      v-if="selectionType == 'choice'"
+      class="content"
+      ref="content"
+      :style="{ width: 'fit-content', margin: '0 auto' }"
+    >
       <VuePDF ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" text-layer />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, onMounted, computed } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
 import cssContent from "./style/style.js";
@@ -49,12 +88,47 @@ const page = ref(1);
 const fileName = ref("");
 const isFile = ref(false);
 const selectedPage = ref([]);
-
+const selectionType = ref("choice");
 function changePage(e) {
   e.target.value > pages.value || e.target.value < 1 ? (e.target.value = page.value) : (page.value = +e.target.value);
 }
 function resetPage(e) {
   e.target.value = page.value;
+}
+
+const startPage = ref(1); // 시작 페이지
+const lastPage = ref(5); // 마지막 페이지 (예시로 10으로 설정)
+
+// PDF 파일을 사용하여 페이지 수 계산
+
+// 시작 페이지부터 마지막 페이지까지의 범위를 가져오는 계산된 속성
+const filteredPages = computed(() => {
+  const filtered = [];
+  for (let page = startPage.value; page <= lastPage.value; page++) {
+    filtered.push(page);
+  }
+  return filtered;
+});
+
+function updateStartPages(e) {
+  if (e.target.value > pages.value || e.target.value < 1 || e.target.value > lastPage.value) {
+    e.target.value = startPage.value;
+  } else {
+    startPage.value = +e.target.value;
+  }
+}
+function updateLastPages(e) {
+  if (e.target.value > pages.value || e.target.value < 1 || e.target.value < startPage.value) {
+    e.target.value = lastPage.value;
+  } else {
+    lastPage.value = +e.target.value;
+  }
+}
+function resetStartPage(e) {
+  e.target.value = startPage.value;
+}
+function resetLastPage(e) {
+  e.target.value = startPage.value;
 }
 
 function changeFile(event) {
@@ -135,7 +209,7 @@ document.addEventListener("keydown", function (e) {
   }
 });
 
-function selectPage() {
+function selectChoicePage() {
   const a = document.querySelector("canvas");
   const canvasDataURL = a.toDataURL();
 
@@ -143,11 +217,69 @@ function selectPage() {
     page: page.value,
     data: canvasDataURL,
   });
-
-  console.log(selectedPage.value);
 }
 
-function exportHTML() {
+function exportRangeHTML() {
+  const zip = new JSZip(); // ZIP 객체 생성
+  filteredPages.value.forEach((v, i) => {
+    // 페이지 별로 HTML 복제 및 수정
+    const contentHTML = document.querySelector("html").cloneNode(true);
+    const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style, .pdf_wrap");
+    elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
+
+    const _pdf = document.querySelectorAll(".pdf_wrap");
+    const pdfWrap = _pdf[i].cloneNode(true);
+    contentHTML.querySelector(".content").appendChild(pdfWrap);
+
+    const linkElement = document.createElement("link");
+    linkElement.rel = "stylesheet";
+    linkElement.href = "./css/common.css";
+    contentHTML.querySelector("head").appendChild(linkElement);
+
+    // 페이지 제목 설정
+    contentHTML.querySelector("title").textContent = `${fileName.value}_${String(v).padStart(3, "0")}`;
+    const canvas = document.querySelectorAll("canvas")[i];
+    // 스크립트 직접 추가
+    const scriptContent = `
+            let canvas = document.querySelector("canvas");
+            const context = canvas.getContext("2d");
+            const base_image = new Image();
+            base_image.src = "${canvas.toDataURL()}";
+            base_image.onload = function () {
+                canvas.width = base_image.width;
+                canvas.height = base_image.height;
+                context.drawImage(base_image, 0, 0);
+            };
+        `;
+    const scriptFileName = `${fileName.value}_${String(v).padStart(3, "0")}.js`;
+    zip.folder("js").file(scriptFileName, scriptContent);
+
+    const scriptElement = document.createElement("script");
+    scriptElement.src = `./js/${scriptFileName}`;
+    contentHTML.querySelector("body").appendChild(scriptElement);
+
+    // Blob 생성 및 ZIP 파일에 추가
+    const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
+    zip.file(`${fileName.value}_${String(v).padStart(3, "0")}.html`, blob);
+  });
+
+  // ZIP 파일 생성 및 다운로드
+
+  zip.folder("css").file("common.css", cssContent);
+
+  zip
+    .generateAsync({ type: "blob" }) //압축파일 생성
+    .then((resZip) => {
+      const url = URL.createObjectURL(resZip); //객체 URL 생성
+      const aTag = document.createElement("a");
+
+      aTag.download = fileName.value; //저장될 파일 이름
+      aTag.href = url;
+      aTag.click();
+    });
+}
+
+function exportChoiceHTML() {
   const zip = new JSZip(); // ZIP 객체 생성
 
   selectedPage.value.forEach((v) => {
