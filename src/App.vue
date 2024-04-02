@@ -22,8 +22,8 @@
         <span for="magnification">{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
         <button @click="scale = scale < 6 ? scale + 0.2 : scale">+</button>
       </li>
-      <li>
-        <span v-if="isFile">선택 : {{ selectedPage.map((v) => v.page) }}</span>
+      <li v-if="isFile">
+        <span>선택 : {{ selectedPage.map((v) => v.page) }}</span>
         <button @click="selectPage">선택</button>
       </li>
       <li v-if="isFile">
