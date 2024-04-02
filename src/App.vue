@@ -22,6 +22,10 @@
         <span for="magnification">{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
         <button @click="scale = scale < 6 ? scale + 0.2 : scale">+</button>
       </li>
+      <li>
+        <span v-if="isFile">선택 : {{ selectedPage.map((v) => v.page) }}</span>
+        <button @click="selectPage">선택</button>
+      </li>
       <li v-if="isFile">
         <button @click="exportHTML">내보내기</button>
       </li>
@@ -44,6 +48,7 @@ const scale = ref(2);
 const page = ref(1);
 const fileName = ref("");
 const isFile = ref(false);
+const selectedPage = ref([]);
 
 function changePage(e) {
   e.target.value > pages.value || e.target.value < 1 ? (e.target.value = page.value) : (page.value = +e.target.value);
@@ -130,51 +135,62 @@ document.addEventListener("keydown", function (e) {
   }
 });
 
-function exportHTML() {
-  const contentHTML = document.querySelector("html").cloneNode(true);
-
-  // 필요없는 요소 제거
-  const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style");
-  elementsToRemove.forEach((element) => {
-    if (element) {
-      element.parentNode.removeChild(element);
-    }
-  });
-
+function selectPage() {
   const a = document.querySelector("canvas");
   const canvasDataURL = a.toDataURL();
 
-  const linkElement = document.createElement("link");
+  selectedPage.value.push({
+    page: page.value,
+    data: canvasDataURL,
+  });
 
-  linkElement.rel = "stylesheet";
-  linkElement.href = "./css/common.css";
+  console.log(selectedPage.value);
+}
 
-  const scriptElement = document.createElement("script");
-  scriptElement.src = `./js/${fileName.value}_${String(page.value).padStart(3, "0")}.js`;
-
-  contentHTML.querySelector("title").textContent = `${fileName.value}_${String(page.value).padStart(3, "0")}`;
-
-  const js = `
-  const canvas = document.querySelector("canvas");
-  const context = canvas.getContext("2d");
-  const base_image = new Image();
-  base_image.src = "${canvasDataURL}";
-  base_image.onload = function () {
-    canvas.width = base_image.width;
-    canvas.height = base_image.height;
-    context.drawImage(base_image, 0, 0);
-  };
-  `;
-  contentHTML.querySelector("head").appendChild(linkElement);
-  contentHTML.appendChild(scriptElement);
-
-  const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
-
+function exportHTML() {
   const zip = new JSZip(); // ZIP 객체 생성
 
+  selectedPage.value.forEach((v) => {
+    // 페이지 별로 HTML 복제 및 수정
+    const contentHTML = document.querySelector("html").cloneNode(true);
+    const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style");
+    elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
+
+    const linkElement = document.createElement("link");
+    linkElement.rel = "stylesheet";
+    linkElement.href = "./css/common.css";
+    contentHTML.querySelector("head").appendChild(linkElement);
+
+    // 페이지 제목 설정
+    contentHTML.querySelector("title").textContent = `${fileName.value}_${String(v.page).padStart(3, "0")}`;
+
+    // 스크립트 직접 추가
+    const scriptContent = `
+            let canvas = document.querySelector("canvas");
+            const context = canvas.getContext("2d");
+            const base_image = new Image();
+            base_image.src = "${v.data}";
+            base_image.onload = function () {
+                canvas.width = base_image.width;
+                canvas.height = base_image.height;
+                context.drawImage(base_image, 0, 0);
+            };
+        `;
+    const scriptFileName = `${fileName.value}_${String(v.page).padStart(3, "0")}.js`;
+    zip.folder("js").file(scriptFileName, scriptContent);
+
+    const scriptElement = document.createElement("script");
+    scriptElement.src = `./js/${scriptFileName}`;
+    contentHTML.querySelector("body").appendChild(scriptElement);
+
+    // Blob 생성 및 ZIP 파일에 추가
+    const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
+    zip.file(`${fileName.value}_${String(v.page).padStart(3, "0")}.html`, blob);
+  });
+
+  // ZIP 파일 생성 및 다운로드
+
   zip.folder("css").file("common.css", cssContent);
-  zip.folder(`js`).file(`${fileName.value}_${String(page.value).padStart(3, "0")}.js`, js);
-  zip.file(`${fileName.value}_${String(page.value).padStart(3, "0")}.html`, blob);
 
   zip
     .generateAsync({ type: "blob" }) //압축파일 생성
