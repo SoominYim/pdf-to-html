@@ -33,7 +33,9 @@
         <button @click="selectChoicePage">선택</button>
       </li>
       <li v-if="isFile && selectionType == 'range'">
-        <span style="color: red">* 과도한 스케일 조정 시 오버플로우가 발생합니다. </span>
+        <span style="color: red">* 과도한 스케일 조정 시 오버플로우가 발생합니다. </span>전체 페이지 :{{ pages }}
+      </li>
+      <li v-if="isFile && selectionType == 'range'">
         <label for="startPage">Start Page:</label>
         <input
           type="text"
@@ -52,6 +54,7 @@
       </li>
       <li v-if="isFile && selectionType == 'range'">
         <button @click="exportRangeHTML">내보내기</button>
+        <span style="color: red"> * 렌더링이 완료되면 눌러주세요. </span>
       </li>
     </ul>
     <div
