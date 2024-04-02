@@ -47,10 +47,10 @@
         <label for="lastPage">Last Page:</label>
         <input type="text" id="lastPage" :value="lastPage" @keydown.enter="updateLastPages" @focusout="resetLastPage" />
       </li>
-      <li v-if="isFile">
+      <li v-if="isFile && selectionType == 'choice'">
         <button @click="exportChoiceHTML">내보내기</button>
       </li>
-      <li v-if="isFile">
+      <li v-if="isFile && selectionType == 'range'">
         <button @click="exportRangeHTML">내보내기</button>
       </li>
     </ul>
