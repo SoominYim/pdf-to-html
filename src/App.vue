@@ -33,7 +33,7 @@
         <button @click="selectChoicePage">선택</button>
       </li>
       <li v-if="isFile && selectionType == 'range'">
-        <span style="color: red">* 과도한 스케일 조정 시 오버플로우가 발생합니다. </span>전체 페이지 :{{ pages }}
+        <span style="color: red">* 과도한 조정 시 오버플로우가 발생합니다. </span>전체 페이지 :{{ pages }}
       </li>
       <li v-if="isFile && selectionType == 'range'">
         <label for="startPage">Start Page:</label>
@@ -92,48 +92,8 @@ const fileName = ref("");
 const isFile = ref(false);
 const selectedPage = ref([]);
 const selectionType = ref("choice");
-function changePage(e) {
-  e.target.value > pages.value || e.target.value < 1 ? (e.target.value = page.value) : (page.value = +e.target.value);
-}
-function resetPage(e) {
-  e.target.value = page.value;
-}
 
-const startPage = ref(1); // 시작 페이지
-const lastPage = ref(5); // 마지막 페이지 (예시로 10으로 설정)
-
-// PDF 파일을 사용하여 페이지 수 계산
-
-// 시작 페이지부터 마지막 페이지까지의 범위를 가져오는 계산된 속성
-const filteredPages = computed(() => {
-  const filtered = [];
-  for (let page = startPage.value; page <= lastPage.value; page++) {
-    filtered.push(page);
-  }
-  return filtered;
-});
-
-function updateStartPages(e) {
-  if (e.target.value > pages.value || e.target.value < 1 || e.target.value > lastPage.value) {
-    e.target.value = startPage.value;
-  } else {
-    startPage.value = +e.target.value;
-  }
-}
-function updateLastPages(e) {
-  if (e.target.value > pages.value || e.target.value < 1 || e.target.value < startPage.value) {
-    e.target.value = lastPage.value;
-  } else {
-    lastPage.value = +e.target.value;
-  }
-}
-function resetStartPage(e) {
-  e.target.value = startPage.value;
-}
-function resetLastPage(e) {
-  e.target.value = startPage.value;
-}
-
+// common START
 function changeFile(event) {
   const selectedFile = event.target.files[0];
   if (selectedFile) {
@@ -143,7 +103,6 @@ function changeFile(event) {
   }
 }
 
-// 버려지는 br 태그 제거
 onMounted(() => {
   const observer = new MutationObserver((mutationsList) => {
     mutationsList.forEach((mutation) => {
@@ -197,19 +156,39 @@ document.addEventListener(
 document.addEventListener("keydown", function (e) {
   if (e.ctrlKey) {
     if (e.key === "-") {
-      // Ctrl + -인 경우
       e.preventDefault();
       if (scale.value > 1.1) {
         scale.value -= 0.2;
       }
     } else if (e.key === "=" || e.key === "+") {
-      // Ctrl + +인 경우
       e.preventDefault();
       if (scale.value < 6) {
         scale.value += 0.2;
       }
     }
   }
+});
+
+// common END
+
+// 개별 선택 START
+const startPage = ref(1);
+const lastPage = ref(5);
+
+function changePage(e) {
+  e.target.value > pages.value || e.target.value < 1 ? (e.target.value = page.value) : (page.value = +e.target.value);
+}
+
+function resetPage(e) {
+  e.target.value = page.value;
+}
+
+const filteredPages = computed(() => {
+  const filtered = [];
+  for (let page = startPage.value; page <= lastPage.value; page++) {
+    filtered.push(page);
+  }
+  return filtered;
 });
 
 function selectChoicePage() {
@@ -220,66 +199,6 @@ function selectChoicePage() {
     page: page.value,
     data: canvasDataURL,
   });
-}
-
-function exportRangeHTML() {
-  const zip = new JSZip(); // ZIP 객체 생성
-  filteredPages.value.forEach((v, i) => {
-    // 페이지 별로 HTML 복제 및 수정
-    const contentHTML = document.querySelector("html").cloneNode(true);
-    const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style, .pdf_wrap");
-    elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
-
-    const _pdf = document.querySelectorAll(".pdf_wrap");
-    const pdfWrap = _pdf[i].cloneNode(true);
-    contentHTML.querySelector(".content").appendChild(pdfWrap);
-
-    const linkElement = document.createElement("link");
-    linkElement.rel = "stylesheet";
-    linkElement.href = "./css/common.css";
-    contentHTML.querySelector("head").appendChild(linkElement);
-
-    // 페이지 제목 설정
-    contentHTML.querySelector("title").textContent = `${fileName.value}_${String(v).padStart(3, "0")}`;
-    const canvas = document.querySelectorAll("canvas")[i];
-    // 스크립트 직접 추가
-    const scriptContent = `
-            let canvas = document.querySelector("canvas");
-            const context = canvas.getContext("2d");
-            const base_image = new Image();
-            base_image.src = "${canvas.toDataURL()}";
-            base_image.onload = function () {
-                canvas.width = base_image.width;
-                canvas.height = base_image.height;
-                context.drawImage(base_image, 0, 0);
-            };
-        `;
-    const scriptFileName = `${fileName.value}_${String(v).padStart(3, "0")}.js`;
-    zip.folder("js").file(scriptFileName, scriptContent);
-
-    const scriptElement = document.createElement("script");
-    scriptElement.src = `./js/${scriptFileName}`;
-    contentHTML.querySelector("body").appendChild(scriptElement);
-
-    // Blob 생성 및 ZIP 파일에 추가
-    const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
-    zip.file(`${fileName.value}_${String(v).padStart(3, "0")}.html`, blob);
-  });
-
-  // ZIP 파일 생성 및 다운로드
-
-  zip.folder("css").file("common.css", cssContent);
-
-  zip
-    .generateAsync({ type: "blob" }) //압축파일 생성
-    .then((resZip) => {
-      const url = URL.createObjectURL(resZip); //객체 URL 생성
-      const aTag = document.createElement("a");
-
-      aTag.download = fileName.value; //저장될 파일 이름
-      aTag.href = url;
-      aTag.click();
-    });
 }
 
 function exportChoiceHTML() {
@@ -323,21 +242,95 @@ function exportChoiceHTML() {
     zip.file(`${fileName.value}_${String(v.page).padStart(3, "0")}.html`, blob);
   });
 
-  // ZIP 파일 생성 및 다운로드
+  zip.folder("css").file("common.css", cssContent);
+
+  zip.generateAsync({ type: "blob" }).then((resZip) => {
+    const url = URL.createObjectURL(resZip);
+    const aTag = document.createElement("a");
+
+    aTag.download = fileName.value;
+    aTag.href = url;
+    aTag.click();
+  });
+}
+// 개별 선택 END
+
+// 범위 선택 START
+function updateStartPages(e) {
+  if (e.target.value > pages.value || e.target.value < 1 || e.target.value > lastPage.value) {
+    e.target.value = startPage.value;
+  } else {
+    startPage.value = +e.target.value;
+  }
+}
+function updateLastPages(e) {
+  if (e.target.value > pages.value || e.target.value < 1 || e.target.value < startPage.value) {
+    e.target.value = lastPage.value;
+  } else {
+    lastPage.value = +e.target.value;
+  }
+}
+function resetStartPage(e) {
+  e.target.value = startPage.value;
+}
+function resetLastPage(e) {
+  e.target.value = startPage.value;
+}
+
+function exportRangeHTML() {
+  const zip = new JSZip();
+  filteredPages.value.forEach((v, i) => {
+    const contentHTML = document.querySelector("html").cloneNode(true);
+    const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style, .pdf_wrap");
+    elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
+
+    const _pdf = document.querySelectorAll(".pdf_wrap");
+    const pdfWrap = _pdf[i].cloneNode(true);
+    contentHTML.querySelector(".content").appendChild(pdfWrap);
+
+    const linkElement = document.createElement("link");
+    linkElement.rel = "stylesheet";
+    linkElement.href = "./css/common.css";
+    contentHTML.querySelector("head").appendChild(linkElement);
+
+    contentHTML.querySelector("title").textContent = `${fileName.value}_${String(v).padStart(3, "0")}`;
+    const canvas = document.querySelectorAll("canvas")[i];
+    const scriptContent = `
+            let canvas = document.querySelector("canvas");
+            const context = canvas.getContext("2d");
+            const base_image = new Image();
+            base_image.src = "${canvas.toDataURL()}";
+            base_image.onload = function () {
+                canvas.width = base_image.width;
+                canvas.height = base_image.height;
+                context.drawImage(base_image, 0, 0);
+            };
+        `;
+    const scriptFileName = `${fileName.value}_${String(v).padStart(3, "0")}.js`;
+    zip.folder("js").file(scriptFileName, scriptContent);
+
+    const scriptElement = document.createElement("script");
+    scriptElement.src = `./js/${scriptFileName}`;
+    contentHTML.querySelector("body").appendChild(scriptElement);
+
+    // Blob 생성 및 ZIP 파일에 추가
+    const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
+    zip.file(`${fileName.value}_${String(v).padStart(3, "0")}.html`, blob);
+  });
 
   zip.folder("css").file("common.css", cssContent);
 
-  zip
-    .generateAsync({ type: "blob" }) //압축파일 생성
-    .then((resZip) => {
-      const url = URL.createObjectURL(resZip); //객체 URL 생성
-      const aTag = document.createElement("a");
+  zip.generateAsync({ type: "blob" }).then((resZip) => {
+    const url = URL.createObjectURL(resZip);
+    const aTag = document.createElement("a");
 
-      aTag.download = fileName.value; //저장될 파일 이름
-      aTag.href = url;
-      aTag.click();
-    });
+    aTag.download = fileName.value;
+    aTag.href = url;
+    aTag.click();
+  });
 }
+
+// 범위 선택 END
 </script>
 
 <script>
