@@ -1,92 +1,131 @@
 <template>
-  <div id="app" style="text-align: center">
-    <div v-if="!isFile">
-      <label for="choice">개별 선택</label>
-      <input type="radio" name="selectionType" id="choice" v-model="selectionType" value="choice" />
-      <label for="range">범위 선택</label>
-      <input type="radio" name="selectionType" id="range" v-model="selectionType" value="range" />
-    </div>
-    <ul class="tool-bar" style="display: flex; justify-content: center; list-style-type: none; gap: 10px">
-      <li>
-        <input type="file" accept=".pdf" @change="changeFile" />
-      </li>
-      <li v-if="isFile && selectionType == 'choice'">
-        <button @click="page = page > 1 ? page - 1 : page">Prev</button>
-        <input
-          type="text"
-          :value="page"
-          @keydown.enter="changePage"
-          @focusout="resetPage"
-          style="width: 50px; text-align: right"
-        />
-        /
-        {{ pages }}
-        <button @click="page = page < pages ? page + 1 : page">Next</button>
-      </li>
-      <li v-if="isFile">
-        <button @click="scale = scale > 1.1 ? scale - 0.2 : scale">-</button>
-        <span for="magnification">{{ Math.round((scale * 100) / 2 / 10) * 10 }}%</span>
-        <button @click="scale = scale < 6 ? scale + 0.2 : scale">+</button>
-      </li>
-      <li v-if="isFile && selectionType == 'choice'">
-        <span>선택 : {{ selectedPage.map((v) => v.page) }}</span>
-        <button @click="selectChoicePage">선택</button>
-      </li>
-      <li v-if="isFile && selectionType == 'range'">
-        <span style="color: red">* 과도한 조정 시 오버플로우가 발생합니다. </span>전체 페이지 :{{ pages }}
-      </li>
-      <li v-if="isFile && selectionType == 'range'">
-        <label for="startPage">Start Page:</label>
-        <input
-          type="text"
-          id="startPage"
-          :value="startPage"
-          @keydown.enter="updateStartPages"
-          @focusout="resetStartPage"
-        />
-      </li>
-      <li v-if="isFile && selectionType == 'range'">
-        <label for="lastPage">Last Page:</label>
-        <input type="text" id="lastPage" :value="lastPage" @keydown.enter="updateLastPages" @focusout="resetLastPage" />
-      </li>
-      <li v-if="isFile && selectionType == 'choice'">
-        <button @click="exportChoiceHTML">내보내기</button>
-      </li>
-      <li v-if="isFile && selectionType == 'range'">
-        <button @click="exportRangeHTML">내보내기</button>
-        <span style="color: red"> * 렌더링이 완료되면 눌러주세요. </span>
-      </li>
-    </ul>
-    <div
-      v-if="selectionType == 'range'"
-      class="content"
-      ref="content"
-      :style="{ width: 'fit-content', margin: '0 auto' }"
-    >
-      <div class="pdf_wrap" v-for="page in filteredPages" :key="page">
-        <VuePDF ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" text-layer />
+  <div id="app">
+    <div class="pdfContainer" style="text-align: center">
+      <div class="header">
+        <div v-if="!isFile">
+          <input type="radio" name="selectionType" id="choice" v-model="selectionType" value="choice" />
+          <label for="choice">개별 선택</label>
+          <input type="radio" name="selectionType" id="range" v-model="selectionType" value="range" />
+          <label for="range">범위 선택</label>
+        </div>
+        <ul class="tool-bar" style="display: flex; justify-content: center; list-style-type: none; gap: 10px">
+          <li v-if="isFile">
+            <p>{{ fileName }}.pdf</p>
+          </li>
+
+          <li style="margin-right: 5px" v-if="!isFile" class="file_wrap">
+            <input id="file" type="file" accept=".pdf" @change="changeFile" />
+            <label for="file">파일 첨부</label>
+          </li>
+          <li v-if="isFile && selectionType == 'choice'" class="page_wrap">
+            <button @click="page = page > 1 ? page - 1 : page">&lt;</button>
+            <input
+              type="text"
+              :value="page"
+              @keydown.enter="changePage"
+              @focusout="resetPage"
+              @input="numInput"
+              style="width: 50px; text-align: right"
+            />
+            /
+            {{ pages }}
+            <button @click="page = page < pages ? page + 1 : page">&gt;</button>
+          </li>
+          <li v-if="isFile && selectionType == 'range'" class="rangePage_wrap">
+            <span style="margin-right: 5px">total : {{ pages }}</span>
+            <input
+              type="text"
+              id="startPage"
+              :value="startPage"
+              @keydown.enter="updateStartPages"
+              @focusout="resetStartPage"
+              @input="numInput"
+            />
+            /
+            <input
+              type="text"
+              id="lastPage"
+              :value="lastPage"
+              @keydown.enter="updateLastPages"
+              @focusout="resetLastPage"
+              @input="numInput"
+            />
+          </li>
+          <li v-if="isFile" class="scale_wrap">
+            <button @click="scale = scale > 0.5 ? scale - 0.5 : scale">-</button>
+            <span for="magnification">{{ Math.round(scale * 100) }}%</span>
+            <button @click="scale = scale < 4 ? scale + 0.5 : scale">+</button>
+          </li>
+          <li v-if="isFile && selectionType == 'choice'" class="choice_wrap">
+            <div class="select_wrap">
+              <div class="select" :class="{ open: open }" @click="open = !open">
+                {{ selectedPage.length > 0 ? page : "선택 없음" }}
+              </div>
+              <div class="items" v-if="open">
+                <div v-if="selectedPage.length < 1">선택 없음</div>
+                <div class="item" v-for="(p, i) in selectedPage" :key="i" @click="page = p.page">
+                  <div>
+                    {{ p.page }}
+                  </div>
+                  <button @click="deletePage(i)">X</button>
+                </div>
+              </div>
+            </div>
+            <button @click="selectChoicePage">선택</button>
+          </li>
+
+          <li v-if="isFile && selectionType == 'choice'" class="export_wrap">
+            <button @click="exportChoiceHTML">내보내기</button>
+          </li>
+          <li v-if="isFile && selectionType == 'range'" class="export_wrap">
+            <button @click="exportRangeHTML">내보내기</button>
+          </li>
+          <li v-if="isFile && selectionType == 'range'">
+            <span style="color: red"> * 렌더링이 완료되면 눌러주세요 </span>
+          </li>
+        </ul>
       </div>
-    </div>
-    <div
-      v-if="selectionType == 'choice'"
-      class="content"
-      ref="content"
-      :style="{ width: 'fit-content', margin: '0 auto' }"
-    >
-      <VuePDF ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" text-layer />
+      <div
+        v-if="selectionType == 'range'"
+        class="content"
+        ref="content"
+        :style="{
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+        }"
+      >
+        <div class="pdf_wrap" v-for="page in filteredPages" :key="page">
+          <VuePDF @loaded="onLoaded" ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer">
+            <div class="loading-overlay">
+              <div class="loader"></div></div
+          ></VuePDF>
+        </div>
+      </div>
+      <div v-if="selectionType == 'choice'" class="content" ref="content" :style="{}">
+        <div class="pdf_wrap">
+          <VuePDF @loaded="onLoaded" ref="vuePDFRef" :scale="scale" :pdf="pdf" :page="page" :text-layer="text_layer"
+            ><div class="loading-overlay">
+              <div class="loader"></div>
+            </div>
+          </VuePDF>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, computed } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
-import cssContent from "./style/style.js";
+import cssContent from "./style/style";
 const file = ref(null);
 const { pdf, pages } = usePDF(file);
 
-const scale = ref(2);
+const text_layer = ref(true);
+
+const scale = ref(1);
 const page = ref(1);
 const fileName = ref("");
 const isFile = ref(false);
@@ -103,7 +142,7 @@ function changeFile(event) {
   }
 }
 
-onMounted(() => {
+const removeBrTags = () => {
   const observer = new MutationObserver((mutationsList) => {
     mutationsList.forEach((mutation) => {
       if (mutation.addedNodes) {
@@ -116,18 +155,18 @@ onMounted(() => {
     });
   });
 
-  const contentElement = document.querySelector(".content");
-  observer.observe(contentElement, { childList: true, subtree: true });
-});
+  const pdfWrapElements = document.querySelectorAll(".pdf_wrap");
+  pdfWrapElements.forEach((pdfWrapElement) => {
+    observer.observe(pdfWrapElement, { childList: true, subtree: true });
+  });
+};
 
 let isCtrl = false;
-
 document.addEventListener("keydown", function (e) {
   if (e.which === 17) {
     isCtrl = true;
   }
 });
-
 document.addEventListener("keyup", function (e) {
   if (e.which === 17) {
     isCtrl = false;
@@ -140,12 +179,12 @@ document.addEventListener(
     if (isCtrl) {
       e.preventDefault();
       if (e.deltaY > 0) {
-        if (scale.value > 1.1) {
-          scale.value -= 0.2;
+        if (scale.value > 0.5) {
+          scale.value -= 0.5;
         }
       } else if (e.deltaY < 0) {
-        if (scale.value < 6) {
-          scale.value += 0.2;
+        if (scale.value < 4) {
+          scale.value += 0.5;
         }
       }
     }
@@ -157,23 +196,54 @@ document.addEventListener("keydown", function (e) {
   if (e.ctrlKey) {
     if (e.key === "-") {
       e.preventDefault();
-      if (scale.value > 1.1) {
-        scale.value -= 0.2;
+      if (scale.value > 1) {
+        scale.value -= 0.5;
       }
     } else if (e.key === "=" || e.key === "+") {
       e.preventDefault();
-      if (scale.value < 6) {
-        scale.value += 0.2;
+      if (scale.value < 4) {
+        scale.value += 0.5;
       }
     }
   }
 });
 
+/**
+ * @param {string} a
+ * @param {string} b
+ * @param {string} c
+ */
+
+function removeEl(parentNode, a, b, c) {
+  const elementsToRemove = parentNode.querySelectorAll(a);
+  const elementsToRemoveClasses = parentNode.querySelectorAll(b);
+  const elementsToRemoveStyle = parentNode.querySelectorAll(c);
+  elementsToRemoveClasses.forEach((element) => {
+    element.classList = "";
+  });
+  elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
+  elementsToRemoveStyle.forEach((element) => {
+    element.removeAttribute("style");
+  });
+}
+
+let wheelTimer; // 휠 이벤트 종료를 감지하기 위한 타이머 변수
+
+function onLoaded() {
+  removeBrTags();
+  text_layer.value = false;
+
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => {
+    text_layer.value = true;
+  }, 500);
+}
+
 // common END
 
 // 개별 선택 START
 const startPage = ref(1);
-const lastPage = ref(5);
+const lastPage = ref(1);
 
 function changePage(e) {
   e.target.value > pages.value || e.target.value < 1 ? (e.target.value = page.value) : (page.value = +e.target.value);
@@ -194,21 +264,33 @@ const filteredPages = computed(() => {
 function selectChoicePage() {
   const a = document.querySelector("canvas");
   const canvasDataURL = a.toDataURL();
+  const isNewPageUnique = !selectedPage.value.some((item) => item.page === page.value);
+  if (isNewPageUnique) {
+    selectedPage.value.push({
+      page: page.value,
+      data: canvasDataURL,
+    });
+  }
 
-  selectedPage.value.push({
-    page: page.value,
-    data: canvasDataURL,
-  });
+  selectedPage.value.sort((a, b) => a.page - b.page);
+}
+
+function deletePage(i) {
+  selectedPage.value.splice(i, 1);
 }
 
 function exportChoiceHTML() {
   const zip = new JSZip(); // ZIP 객체 생성
-
+  if (selectedPage.value.length < 1) selectChoicePage();
   selectedPage.value.forEach((v) => {
     // 페이지 별로 HTML 복제 및 수정
     const contentHTML = document.querySelector("html").cloneNode(true);
-    const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style");
-    elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
+    const elReSelector =
+      "#header, .header, script, style, .v-overlay-container, link[href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css'], link[href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900&display=swap'], noscript";
+    const elReClassSelector = ".v-application";
+    const elReStyleSelector = ".v-main";
+
+    removeEl(contentHTML, elReSelector, elReClassSelector, elReStyleSelector);
 
     const linkElement = document.createElement("link");
     linkElement.rel = "stylesheet";
@@ -256,6 +338,7 @@ function exportChoiceHTML() {
 // 개별 선택 END
 
 // 범위 선택 START
+
 function updateStartPages(e) {
   if (e.target.value > pages.value || e.target.value < 1 || e.target.value > lastPage.value) {
     e.target.value = startPage.value;
@@ -274,15 +357,20 @@ function resetStartPage(e) {
   e.target.value = startPage.value;
 }
 function resetLastPage(e) {
-  e.target.value = startPage.value;
+  e.target.value = lastPage.value;
 }
 
 function exportRangeHTML() {
   const zip = new JSZip();
   filteredPages.value.forEach((v, i) => {
     const contentHTML = document.querySelector("html").cloneNode(true);
-    const elementsToRemove = contentHTML.querySelectorAll(".tool-bar, script, style, .pdf_wrap");
-    elementsToRemove.forEach((element) => element.parentNode.removeChild(element));
+
+    const elReSelector =
+      "#header, .tool-bar, script, style, .pdf_wrap, .v-overlay-container, link[href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css'], link[href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900&display=swap'], noscript";
+    const elReClassSelector = ".v-application";
+    const elReStyleSelector = ".v-main";
+
+    removeEl(contentHTML, elReSelector, elReClassSelector, elReStyleSelector);
 
     const _pdf = document.querySelectorAll(".pdf_wrap");
     const pdfWrap = _pdf[i].cloneNode(true);
@@ -335,16 +423,291 @@ function exportRangeHTML() {
 
 <script>
 export default {
-  name: "app",
+  name: "MiniPdf",
   data() {
-    return {};
+    return {
+      open: false,
+    };
   },
-  methods: {},
+  methods: {
+    numInput(e) {
+      const regex = /[^0-9]/g;
+      if (regex.test(e.target.value)) {
+        e.target.value = e.target.value.replace(regex, "");
+      }
+    },
+  },
 };
 </script>
 <style scoped></style>
 
-<style lang="css">
-/* @import "./style/textLayer.css"; */
+<style lang="scss" scoped>
 @import "./style/annotationLayer.css";
+@import "./style/reset.css";
+
+@font-face {
+  font-family: "Cafe24Supermagic-Bold-v1.0";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2307-2@1.0/Cafe24Supermagic-Bold-v1.0.woff2")
+    format("woff2");
+  font-weight: 400;
+  font-style: normal;
+}
+@font-face {
+  font-family: "GangwonEduHyeonokT_OTFMediumA";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2201-2@1.0/GangwonEduHyeonokT_OTFMediumA.woff")
+    format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "UhBeemysen";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_five@.2.0/UhBeemysen.woff") format("woff");
+  font-weight: normal;
+  font-style: normal;
+}
+
+#app {
+  background-color: #ccc;
+}
+.pdfContainer {
+  button {
+    padding: 0px 7px;
+  }
+  .header {
+    background-color: #41b883;
+    display: flex;
+    justify-content: center;
+    & > div {
+      display: flex;
+      justify-content: center;
+      input[type="radio"] {
+        display: none;
+        &:checked + label {
+          background-color: #35976b;
+        }
+      }
+      label {
+        display: inline-block;
+        font-size: 1.5rem;
+        padding: 12px;
+        white-space: nowrap;
+        text-wrap: nowrap;
+        word-break: keep-all;
+        cursor: pointer;
+        color: #fff;
+      }
+    }
+    & > ul {
+      font-size: 1.5rem;
+      white-space: nowrap;
+      text-wrap: nowrap;
+      word-break: keep-all;
+      color: #fff;
+      li {
+        padding: 12px;
+      }
+      .file_wrap {
+        &:hover {
+          background-color: #35976b;
+        }
+        input[type="file"] {
+          position: absolute;
+          width: 0;
+          height: 0;
+          padding: 0;
+          overflow: hidden;
+          border: 0;
+        }
+        label {
+          cursor: pointer;
+        }
+      }
+      .page_wrap {
+        button {
+          border: 1px solid #fff;
+          border-radius: 3px;
+          margin: 0 5px;
+          &:hover {
+            background-color: #35976b;
+          }
+        }
+        input {
+          background-color: #55c592;
+          border: 1px solid #fff;
+          border-radius: 2px;
+          color: #fff;
+          padding-right: 4px;
+          outline: none;
+          &:focus {
+            border-color: #424242;
+          }
+        }
+      }
+      .scale_wrap {
+        button {
+          border: 1px solid #fff;
+          border-radius: 3px;
+          margin: 0 5px;
+          &:hover {
+            background-color: #35976b;
+          }
+        }
+        span {
+          display: inline-block;
+          width: 40px;
+        }
+      }
+      .choice_wrap {
+        position: relative;
+        width: 190px;
+        & > button {
+          border: 1px solid #fff;
+          border-radius: 3px;
+          margin: 0 5px;
+          margin-left: 120px;
+          &:hover {
+            background-color: #35976b;
+          }
+        }
+        .select_wrap {
+          .select {
+            position: absolute;
+            top: 11px;
+            left: 7px;
+            width: 98px;
+            font-size: 1.2rem;
+            border: 1px solid #ccc;
+            padding: 3px 10px;
+            border-radius: 5px; /* 드롭다운 모서리 둥글게 */
+            background-color: #35976b;
+            text-align: left;
+            cursor: pointer;
+            &:after {
+              position: absolute;
+              content: "";
+              top: 8px;
+              right: 10px;
+              width: 0;
+              height: 0;
+              border: 5px solid transparent;
+              border-color: #fff transparent transparent transparent;
+            }
+            &.open {
+              border: 1px solid #ad8225;
+              border-radius: 6px 6px 0px 0px;
+            }
+          }
+          .items {
+            overflow: hidden;
+            position: absolute;
+            top: 33px;
+            left: 7px;
+            width: 98px;
+            font-size: 1.2rem;
+            border-right: 1px solid #ad8225;
+            border-left: 1px solid #ad8225;
+            border-bottom: 1px solid #ad8225;
+            border-radius: 0px 0px 6px 6px;
+            background-color: #35976b;
+            cursor: pointer;
+            z-index: 3;
+            .item {
+              display: flex;
+              justify-content: space-around;
+
+              &:not(:last-child) {
+                margin-bottom: 5px;
+              }
+              &:hover {
+                background-color: #2d7e59;
+              }
+              div {
+                width: 50%;
+                text-align: center;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+              }
+              button {
+                border: 1px solid #fff;
+                border-radius: 3px;
+                margin-top: 4px;
+                margin-bottom: 4px;
+                &:hover {
+                  background-color: #2d7e59;
+                }
+              }
+            }
+          }
+        }
+      }
+      .export_wrap {
+        cursor: pointer;
+        &:hover {
+          background-color: #35976b;
+        }
+      }
+      .rangePage_wrap {
+        input {
+          width: 50px;
+
+          background-color: #55c592;
+          border: 1px solid #fff;
+          border-radius: 2px;
+          color: #fff;
+          padding-right: 8px;
+          outline: none;
+          text-align: right;
+          &:focus {
+            border-color: #424242;
+          }
+        }
+      }
+    }
+  }
+  .content {
+    height: 95vh;
+    margin: 0px auto;
+    display: flex;
+    justify-content: center;
+    overflow: auto;
+    .pdf_wrap {
+      height: fit-content;
+      margin: 10px;
+    }
+  }
+}
+.loading-container {
+  position: relative;
+}
+
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loader {
+  border: 16px solid #f3f3f3; /* 회색 테두리 */
+  border-top: 16px solid #41b883; /* 파란색 테두리 */
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  animation: spin 2s linear infinite; /* 회전 애니메이션 */
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
 </style>
