@@ -125,7 +125,7 @@ const { pdf, pages } = usePDF(file);
 
 const text_layer = ref(true);
 
-const scale = ref(1);
+const scale = ref(1.5);
 const page = ref(1);
 const fileName = ref("");
 const isFile = ref(false);
