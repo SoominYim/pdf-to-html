@@ -52,9 +52,9 @@
             />
           </li>
           <li v-if="isFile" class="scale_wrap">
-            <button @click="scale = scale > 0.5 ? scale - 0.5 : scale">-</button>
+            <button @click="scale = scale > 0.5 ? scale - 0.1 : scale">-</button>
             <span for="magnification">{{ Math.round(scale * 100) }}%</span>
-            <button @click="scale = scale < 4 ? scale + 0.5 : scale">+</button>
+            <button @click="scale = scale < 4 ? scale + 0.1 : scale">+</button>
           </li>
           <li v-if="isFile && selectionType == 'choice'" class="choice_wrap">
             <div class="select_wrap">
@@ -125,7 +125,7 @@ const { pdf, pages } = usePDF(file);
 
 const text_layer = ref(true);
 
-const scale = ref(1.5);
+const scale = ref(1.4);
 const page = ref(1);
 const fileName = ref("");
 const isFile = ref(false);
@@ -180,11 +180,11 @@ document.addEventListener(
       e.preventDefault();
       if (e.deltaY > 0) {
         if (scale.value > 0.5) {
-          scale.value -= 0.5;
+          scale.value -= 0.1;
         }
       } else if (e.deltaY < 0) {
         if (scale.value < 4) {
-          scale.value += 0.5;
+          scale.value += 0.1;
         }
       }
     }
@@ -197,12 +197,12 @@ document.addEventListener("keydown", function (e) {
     if (e.key === "-") {
       e.preventDefault();
       if (scale.value > 1) {
-        scale.value -= 0.5;
+        scale.value -= 0.1;
       }
     } else if (e.key === "=" || e.key === "+") {
       e.preventDefault();
       if (scale.value < 4) {
-        scale.value += 0.5;
+        scale.value += 0.1;
       }
     }
   }
@@ -265,13 +265,16 @@ function selectChoicePage() {
   const a = document.querySelector("canvas");
   const canvasDataURL = a.toDataURL();
   const isNewPageUnique = !selectedPage.value.some((item) => item.page === page.value);
+  const contentHTML = document.querySelector("html").cloneNode(true);
+
   if (isNewPageUnique) {
+    const clonedHTML = contentHTML.cloneNode(true); // 선택한 페이지의 HTML 복제
     selectedPage.value.push({
+      html: clonedHTML,
       page: page.value,
       data: canvasDataURL,
     });
   }
-
   selectedPage.value.sort((a, b) => a.page - b.page);
 }
 
@@ -282,23 +285,22 @@ function deletePage(i) {
 function exportChoiceHTML() {
   const zip = new JSZip(); // ZIP 객체 생성
   if (selectedPage.value.length < 1) selectChoicePage();
-  selectedPage.value.forEach((v) => {
-    // 페이지 별로 HTML 복제 및 수정
-    const contentHTML = document.querySelector("html").cloneNode(true);
+  selectedPage.value.forEach((v, i) => {
+    const _v = v.html;
     const elReSelector =
       "#header, .header, script, style, .v-overlay-container, link[href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css'], link[href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900&display=swap'], noscript";
     const elReClassSelector = ".v-application";
     const elReStyleSelector = ".v-main";
 
-    removeEl(contentHTML, elReSelector, elReClassSelector, elReStyleSelector);
+    removeEl(_v, elReSelector, elReClassSelector, elReStyleSelector);
 
     const linkElement = document.createElement("link");
     linkElement.rel = "stylesheet";
     linkElement.href = "./css/common.css";
-    contentHTML.querySelector("head").appendChild(linkElement);
+    _v.querySelector("head").appendChild(linkElement);
 
     // 페이지 제목 설정
-    contentHTML.querySelector("title").textContent = `${fileName.value}_${String(v.page).padStart(3, "0")}`;
+    _v.querySelector("title").textContent = `${fileName.value}_${String(v.page).padStart(3, "0")}`;
 
     // 스크립트 직접 추가
     const scriptContent = `
@@ -317,10 +319,10 @@ function exportChoiceHTML() {
 
     const scriptElement = document.createElement("script");
     scriptElement.src = `./js/${scriptFileName}`;
-    contentHTML.querySelector("body").appendChild(scriptElement);
+    _v.querySelector("body").appendChild(scriptElement);
 
     // Blob 생성 및 ZIP 파일에 추가
-    const blob = new Blob([contentHTML.innerHTML], { type: "text/html" });
+    const blob = new Blob([_v.innerHTML], { type: "text/html" });
     zip.file(`${fileName.value}_${String(v.page).padStart(3, "0")}.html`, blob);
   });
 
