@@ -134,24 +134,6 @@ const isFile = ref(false);
 const selectedPage = ref([]);
 const selectionType = ref("choice");
 const svg = [];
-async function convertChoicePDFToSVG(page) {
-  try {
-    const f = document.querySelector("#file");
-
-    let convertApi = ConvertApi.auth("bOeh9tn7vx3a2qXv");
-    let params = convertApi.createParams();
-    params.add("File", f.files[0]);
-    params.add("PageRange", `${page}`);
-    console.log("로딩중 입니다.");
-    const result = await convertApi.convert("pdf", "svg", params);
-    console.log("로딩끝 입니다.");
-    svg.push(...result.files);
-    console.log(result);
-    console.log(svg);
-  } catch (error) {
-    console.error(error);
-  }
-}
 
 // common START
 function changeFile(event) {
@@ -303,6 +285,25 @@ function deletePage(i) {
   selectedPage.value.splice(i, 1);
 }
 
+async function convertChoicePDFToSVG(page) {
+  try {
+    const f = document.querySelector("#file");
+
+    let convertApi = ConvertApi.auth("bOeh9tn7vx3a2qXv");
+    let params = convertApi.createParams();
+    params.add("File", f.files[0]);
+    params.add("PageRange", `${page}`);
+    console.log("로딩중 입니다.");
+    const result = await convertApi.convert("pdf", "svg", params);
+    console.log("로딩끝 입니다.");
+    svg.push(...result.files);
+    console.log(result);
+    console.log(svg);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 async function exportChoiceHTML() {
   const zip = new JSZip(); // ZIP 객체 생성
   if (selectedPage.value.length < 1) selectChoicePage();
@@ -326,7 +327,7 @@ async function exportChoiceHTML() {
             // SVG 파일을 ZIP 파일에 추가
             zip
               .folder("svg")
-              .file(`${fileName.value}_${String(selectedPage.value[index].page).padStart(3, "0")}`, blob);
+              .file(`${fileName.value}_${String(selectedPage.value[index].page).padStart(3, "0")}.svg`, blob);
             resolve(); // Promise 완료
           })
           .catch((error) => {
