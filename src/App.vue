@@ -1,5 +1,17 @@
 <template>
   <div id="app">
+    <div
+      class="convertLoading"
+      style="background: rgba(0, 0, 0, 0.3); width: 100vw; height: 100vh; position: absolute; z-index: 9999"
+      v-if="isConvert"
+    >
+      <div class="loading-overlay">
+        <div class="loader"></div>
+      </div>
+      <div style="position: relative; font-size: 50px; color: #f3f3f3; top: calc(50% - -75px); text-align: center">
+        <span>변환중</span>
+      </div>
+    </div>
     <div class="pdfContainer" style="text-align: center">
       <div class="header">
         <div v-if="!isFile">
@@ -133,7 +145,8 @@ const fileName = ref("");
 const isFile = ref(false);
 const selectedPage = ref([]);
 const selectionType = ref("choice");
-const svg = [];
+const isConvert = ref(false);
+let svg = [];
 
 // common START
 function changeFile(event) {
@@ -292,10 +305,10 @@ async function convertChoicePDFToSVG(page) {
     let convertApi = ConvertApi.auth("bOeh9tn7vx3a2qXv");
     let params = convertApi.createParams();
     params.add("File", f.files[0]);
-    params.add("PageRange", `${page}`);
-    console.log("로딩중 입니다.");
+    params.add("PageRange", `${page.join(",")}`);
+    isConvert.value = true;
     const result = await convertApi.convert("pdf", "svg", params);
-    console.log("로딩끝 입니다.");
+    isConvert.value = false;
     svg.push(...result.files);
     console.log(result);
     console.log(svg);
@@ -305,14 +318,14 @@ async function convertChoicePDFToSVG(page) {
 }
 
 async function exportChoiceHTML() {
+  const _p = [];
+  selectedPage.value.forEach((v) => {
+    _p.push(v.page);
+  });
   const zip = new JSZip(); // ZIP 객체 생성
   if (selectedPage.value.length < 1) selectChoicePage();
   try {
-    await Promise.all(
-      selectedPage.value.map(async (v) => {
-        await convertChoicePDFToSVG(v.page);
-      })
-    );
+    await convertChoicePDFToSVG(_p);
     // SVG 파일을 다운로드하고 ZIP 파일에 추가하는 Promise 배열 생성
     const svgPromises = svg.map((file, index) => {
       return new Promise((resolve, reject) => {
@@ -325,9 +338,7 @@ async function exportChoiceHTML() {
           })
           .then((blob) => {
             // SVG 파일을 ZIP 파일에 추가
-            zip
-              .folder("svg")
-              .file(`${fileName.value}_${String(selectedPage.value[index].page).padStart(3, "0")}.svg`, blob);
+            zip.folder("svg").file(`${fileName.value}_${String(_p[index]).padStart(3, "0")}.svg`, blob);
             resolve(); // Promise 완료
           })
           .catch((error) => {
@@ -350,22 +361,30 @@ async function exportChoiceHTML() {
       linkElement.rel = "stylesheet";
       linkElement.href = "./css/common.css";
       _v.querySelector("head").appendChild(linkElement);
-
+      _v.querySelector(".pdfContainer").style.textAlign = "left";
       // 페이지 제목 설정
       _v.querySelector("title").textContent = `${fileName.value}_${String(v.page).padStart(3, "0")}`;
 
       // 스크립트 직접 추가
+      const imageUrl = `./svg/${fileName.value}_${String(v.page).padStart(3, "0")}.svg`;
       const scriptContent = `
       let canvas = document.querySelector("canvas");
       const context = canvas.getContext("2d");
       const base_image = new Image();
       base_image.src = "${v.data}";
-      base_image.onload = function () {
-                  canvas.width = base_image.width;
-                  canvas.height = base_image.height;
-                  context.drawImage(base_image, 0, 0);
-              };
-            `;
+      canvas.style.display = 'none';
+
+
+      const img = new Image();
+      img.src = "${imageUrl}";
+      img.onload = function () {
+        img.style.width = base_image.width;
+        img.style.height = base_image.height;
+        const pdfWrap = document.querySelector(".pdf_wrap > div");
+        pdfWrap.prepend(img);
+      }
+      `;
+
       const scriptFileName = `${fileName.value}_${String(v.page).padStart(3, "0")}.js`;
       zip.folder("js").file(scriptFileName, scriptContent);
 
