@@ -318,12 +318,13 @@ async function convertChoicePDFToSVG(page) {
 }
 
 async function exportChoiceHTML() {
-  const _p = [];
-  selectedPage.value.forEach((v) => {
-    _p.push(v.page);
-  });
+  let _p = [];
   const zip = new JSZip(); // ZIP 객체 생성
   if (selectedPage.value.length < 1) selectChoicePage();
+  selectedPage.value.forEach((v) => {
+    _p.push(v.page);
+    console.log("1", _p);
+  });
   try {
     await convertChoicePDFToSVG(_p);
     // SVG 파일을 다운로드하고 ZIP 파일에 추가하는 Promise 배열 생성
@@ -348,7 +349,7 @@ async function exportChoiceHTML() {
       });
     });
     await Promise.all(svgPromises);
-    selectedPage.value.forEach((v, i) => {
+    selectedPage.value.forEach((v) => {
       const _v = v.html;
       const elReSelector =
         "#header, .header, script, style, .v-overlay-container, link[href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css'], link[href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900&display=swap'], noscript";
@@ -405,6 +406,8 @@ async function exportChoiceHTML() {
     aTag.download = fileName.value;
     aTag.href = url;
     aTag.click();
+    svg = [];
+    _p = [];
   } catch (e) {
     console.error("Error exporting HTML:", e);
   }
