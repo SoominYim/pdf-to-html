@@ -13,7 +13,7 @@
             <p>{{ fileName }}.pdf</p>
           </li>
 
-          <li style="margin-right: 5px" v-if="!isFile" class="file_wrap">
+          <li style="margin-right: 5px" v-show="!isFile" class="file_wrap">
             <input id="file" type="file" accept=".pdf" @change="changeFile" />
             <label for="file">파일 첨부</label>
           </li>
@@ -120,6 +120,8 @@ import { ref, computed } from "vue";
 import { VuePDF, usePDF } from "@tato30/vue-pdf";
 import JSZip from "jszip";
 import cssContent from "./style/style";
+import ConvertApi from "convertapi-js";
+
 const file = ref(null);
 const { pdf, pages } = usePDF(file);
 
@@ -131,6 +133,25 @@ const fileName = ref("");
 const isFile = ref(false);
 const selectedPage = ref([]);
 const selectionType = ref("choice");
+const svg = [];
+async function convertChoicePDFToSVG(page) {
+  try {
+    const f = document.querySelector("#file");
+
+    let convertApi = ConvertApi.auth("bOeh9tn7vx3a2qXv");
+    let params = convertApi.createParams();
+    params.add("File", f.files[0]);
+    params.add("PageRange", `${page}`);
+    console.log("로딩중 입니다.");
+    const result = await convertApi.convert("pdf", "svg", params);
+    console.log("로딩끝 입니다.");
+    svg.push(...result.files);
+    console.log(result);
+    console.log(svg);
+  } catch (error) {
+    console.error(error);
+  }
+}
 
 // common START
 function changeFile(event) {
@@ -282,60 +303,91 @@ function deletePage(i) {
   selectedPage.value.splice(i, 1);
 }
 
-function exportChoiceHTML() {
+async function exportChoiceHTML() {
   const zip = new JSZip(); // ZIP 객체 생성
   if (selectedPage.value.length < 1) selectChoicePage();
-  selectedPage.value.forEach((v, i) => {
-    const _v = v.html;
-    const elReSelector =
-      "#header, .header, script, style, .v-overlay-container, link[href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css'], link[href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900&display=swap'], noscript";
-    const elReClassSelector = ".v-application";
-    const elReStyleSelector = ".v-main";
+  try {
+    await Promise.all(
+      selectedPage.value.map(async (v) => {
+        await convertChoicePDFToSVG(v.page);
+      })
+    );
+    // SVG 파일을 다운로드하고 ZIP 파일에 추가하는 Promise 배열 생성
+    const svgPromises = svg.map((file, index) => {
+      return new Promise((resolve, reject) => {
+        fetch(file.Url)
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`Failed to download SVG file: ${response.status}`);
+            }
+            return response.blob(); // Blob으로 변환
+          })
+          .then((blob) => {
+            // SVG 파일을 ZIP 파일에 추가
+            zip
+              .folder("svg")
+              .file(`${fileName.value}_${String(selectedPage.value[index].page).padStart(3, "0")}`, blob);
+            resolve(); // Promise 완료
+          })
+          .catch((error) => {
+            console.error("Error downloading SVG file:", error);
+            reject(error); // Promise 거부
+          });
+      });
+    });
+    await Promise.all(svgPromises);
+    selectedPage.value.forEach((v, i) => {
+      const _v = v.html;
+      const elReSelector =
+        "#header, .header, script, style, .v-overlay-container, link[href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css'], link[href='https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900&display=swap'], noscript";
+      const elReClassSelector = ".v-application";
+      const elReStyleSelector = ".v-main";
 
-    removeEl(_v, elReSelector, elReClassSelector, elReStyleSelector);
+      removeEl(_v, elReSelector, elReClassSelector, elReStyleSelector);
 
-    const linkElement = document.createElement("link");
-    linkElement.rel = "stylesheet";
-    linkElement.href = "./css/common.css";
-    _v.querySelector("head").appendChild(linkElement);
+      const linkElement = document.createElement("link");
+      linkElement.rel = "stylesheet";
+      linkElement.href = "./css/common.css";
+      _v.querySelector("head").appendChild(linkElement);
 
-    // 페이지 제목 설정
-    _v.querySelector("title").textContent = `${fileName.value}_${String(v.page).padStart(3, "0")}`;
+      // 페이지 제목 설정
+      _v.querySelector("title").textContent = `${fileName.value}_${String(v.page).padStart(3, "0")}`;
 
-    // 스크립트 직접 추가
-    const scriptContent = `
-            let canvas = document.querySelector("canvas");
-            const context = canvas.getContext("2d");
-            const base_image = new Image();
-            base_image.src = "${v.data}";
-            base_image.onload = function () {
-                canvas.width = base_image.width;
-                canvas.height = base_image.height;
-                context.drawImage(base_image, 0, 0);
-            };
-        `;
-    const scriptFileName = `${fileName.value}_${String(v.page).padStart(3, "0")}.js`;
-    zip.folder("js").file(scriptFileName, scriptContent);
+      // 스크립트 직접 추가
+      const scriptContent = `
+      let canvas = document.querySelector("canvas");
+      const context = canvas.getContext("2d");
+      const base_image = new Image();
+      base_image.src = "${v.data}";
+      base_image.onload = function () {
+                  canvas.width = base_image.width;
+                  canvas.height = base_image.height;
+                  context.drawImage(base_image, 0, 0);
+              };
+            `;
+      const scriptFileName = `${fileName.value}_${String(v.page).padStart(3, "0")}.js`;
+      zip.folder("js").file(scriptFileName, scriptContent);
 
-    const scriptElement = document.createElement("script");
-    scriptElement.src = `./js/${scriptFileName}`;
-    _v.querySelector("body").appendChild(scriptElement);
+      const scriptElement = document.createElement("script");
+      scriptElement.src = `./js/${scriptFileName}`;
+      _v.querySelector("body").appendChild(scriptElement);
 
-    // Blob 생성 및 ZIP 파일에 추가
-    const blob = new Blob([_v.innerHTML], { type: "text/html" });
-    zip.file(`${fileName.value}_${String(v.page).padStart(3, "0")}.html`, blob);
-  });
+      // Blob 생성 및 ZIP 파일에 추가
+      const blob = new Blob([_v.innerHTML], { type: "text/html" });
+      zip.file(`${fileName.value}_${String(v.page).padStart(3, "0")}.html`, blob);
+    });
 
-  zip.folder("css").file("common.css", cssContent);
-
-  zip.generateAsync({ type: "blob" }).then((resZip) => {
+    zip.folder("css").file("common.css", cssContent);
+    const resZip = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(resZip);
     const aTag = document.createElement("a");
 
     aTag.download = fileName.value;
     aTag.href = url;
     aTag.click();
-  });
+  } catch (e) {
+    console.error("Error exporting HTML:", e);
+  }
 }
 // 개별 선택 END
 
@@ -396,6 +448,7 @@ function exportRangeHTML() {
                 context.drawImage(base_image, 0, 0);
             };
         `;
+
     const scriptFileName = `${fileName.value}_${String(v).padStart(3, "0")}.js`;
     zip.folder("js").file(scriptFileName, scriptContent);
 
