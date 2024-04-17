@@ -1,24 +1,9 @@
-# pdf-view
+# PDF to SVG HTML Converter
 
-## Project setup
-```
-yarn install
-```
+이 프로젝트는 PDF 파일을 canvas 변환하여 HTML로 제공합니다.
 
-### Compiles and hot-reloads for development
-```
-yarn serve
-```
+## 💎 SVG로 변환 시엔  [PDF TO canvas HTML](https://github.com/SoominYim/pdf-to-svg-html)를 이용해주세요.
 
-### Compiles and minifies for production
-```
-yarn build
-```
 
-### Lints and fixes files
-```
-yarn lint
-```
+## [Getting Started](https://pdf-to-html-omega.vercel.app/)
 
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
